@@ -14,17 +14,66 @@ public class Informer extends PlainInformer implements Serializable{
 	int[] platz=new int[0];
 	int[] punkte=new int[6];
 	
+	BoardInfo boardinfo = new BoardInfo();
+	
+	int[][] board = new int[3][3];
+	
+	int[] playerActions = new int[anzMitSpieler];
 
 	public Informer(){
 		baseInit();
 	}
+	
+	public void initBoard() {
+		for (int x = 0; x < 3; x++) {
+			for (int y = 0; y < 3; y++) {
+				board[x][y]=-1;
+			}
+		}
+	}
+	
+	public int checkRoundWin() {
+		int[] retArr = new int[anzMitSpieler];
+		int ret = -1;
+		
+		for (int i = 0; i < boardinfo.playerDecks.size(); i++) {
+			Deck deck = boardinfo.playerDecks.get(i);
+			for (int b = 0; b < deck.deck.size(); b++) {
+				retArr[i] =deck.getTotalValue();
+			}
+		}
+		
+		for (int i = 0; i < retArr.length; i++) {
+			if(retArr[i] <=21) {
+				if(ret == -1 || retArr[i] > retArr[ret]) {
+					ret = i;
+				}else if(retArr[i] == retArr[ret]) {
+					return -1;
+				}
+				
+			}
+		}
+		
+		return ret;
+	}
+	
+	public boolean checkWin() {
+		boolean ret = false;
+		for (int i = 0; i < punkte.length; i++) {
+			if(punkte[i]==3) {
+				ret = true;
+			}
+		}
+		return ret;
+	}
+	
 	
 	// ----------------------- Init and Starting of Game: reset() / spielStart()  
 	public void spielStart() {
 		baseInit();
 		
 		phase=1;
-		currentPlayer=(currentPlayer+anzMitSpieler-1)%anzMitSpieler;
+		currentPlayer=startSpieler;
 		sendBoard();
 
 		super.spielStart();
@@ -41,6 +90,12 @@ public class Informer extends PlainInformer implements Serializable{
 		platz=new int[0];
 		score=new int[0];
 		phase=0;
+		initBoard();
+		boardinfo.initBoard(anzMitSpieler);
+		playerActions = new int[anzMitSpieler];
+		for (int i = 0; i < playerActions.length; i++) {
+			playerActions[i] = -1;
+		}
 	}
 
 	// ------------- Game End ---------------------------
@@ -106,9 +161,53 @@ public class Informer extends PlainInformer implements Serializable{
 	private void execAction(int curPl, int action) {
 		int act=action>>28&7;
 		if(!isRunningGame()) return;
+		
 
 		if(currentPlayer==curPl) {
-			if(phase==0) {
+			if(phase==1) {
+				if( act == 1) {
+					boardinfo.hit(curPl);
+					playerActions[curPl] = 1;
+				}else if(act == 2) {
+					playerActions[curPl] = 2;
+				}
+				if (currentPlayer!=anzMitSpieler-1){
+					currentPlayer++;
+				}else {
+					currentPlayer = 0;
+				}
+				
+				if(currentPlayer == startSpieler) {
+					boolean allReady = true;
+					for (int i = 0; i < playerActions.length; i++) {
+						if(playerActions[i] <2) {
+							allReady = false;
+						}
+					}
+					if (allReady) {
+						if (startSpieler!=anzMitSpieler-1){
+							startSpieler++;
+						}else {
+							startSpieler = 0;
+						}
+						currentPlayer = startSpieler;
+						if(checkRoundWin() > -1) {
+							punkte[checkRoundWin()]++;
+						}
+						boardinfo.initBoard(anzMitSpieler);
+					}else {
+					}
+
+					for (int i = 0; i < playerActions.length; i++) {
+						playerActions[i] = -1;
+					}
+				}
+				
+//				currentPlayer =(currentPlayer!=(anzMitSpieler-1)?currentPlayer++:0);
+				if(checkWin()){
+					//Gewonnen
+					spielEnde();
+				}
 			}
 			sendBoard();
 		}
@@ -162,6 +261,8 @@ public class Informer extends PlainInformer implements Serializable{
 		dat.v.addElement(new Integer(phase));
 		dat.v.addElement(new Integer(currentPlayer));
 		dat.v.addElement(new Integer(startSpieler));
+		dat.v.addElement(punkte);
+		dat.v.addElement(boardinfo.exportBoard());
 		
 		if(anim!=null)
 			dat.v.addElement(anim);

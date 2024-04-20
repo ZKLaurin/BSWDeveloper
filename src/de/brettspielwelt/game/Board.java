@@ -3,11 +3,13 @@ package de.brettspielwelt.game;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.event.MouseEvent;
 import java.util.Vector;
+import java.awt.Rectangle;
 
 import de.Data;
 import de.Vect;
@@ -30,6 +32,9 @@ public class Board extends HTMLWrapper
 	int[] score=new int[0];
 	int[] platz=new int[0];
 	
+	BoardInfo boardinfo = new BoardInfo();
+	int[][] board = new int[3][3];
+	
 	private String[] spielerName={"","","",""};
 	boolean iAmPlaying = false;
 	int anzSpieler = 0;
@@ -37,6 +42,8 @@ public class Board extends HTMLWrapper
 	
 	int currentPlayer=-1,startSpieler=-1;
 	int phase=0,round=0;
+	
+	Rectangle[][] bereiche = new Rectangle[3][3];
 	
 	Image[] baseImg;
 	
@@ -62,7 +69,7 @@ public class Board extends HTMLWrapper
 	
 	public void initPics(){
 		String[] imageNames = {
-				"bg.png","grid.png", "blue.png","red.png"
+				"bg.png","card.png", "karo.png", "herz.png", "kreuz.png", "spaten.png","activeButton.png","inactiveButton.png"
 		};
 		
 		baseImg = new Image[imageNames.length];
@@ -81,6 +88,8 @@ public class Board extends HTMLWrapper
 			phase=((Integer)v.elementAt(c++)).intValue();
 			currentPlayer=((Integer)v.elementAt(c++)).intValue();
 			startSpieler=((Integer)v.elementAt(c++)).intValue();
+			score = (int[]) v.elementAt(c++);
+			boardinfo.importBoard((String[][])v.elementAt(c++));  
 		
 			int[] anim=((int[])v.elementAt(c++));
 			handleAnim(anim);
@@ -178,6 +187,16 @@ public class Board extends HTMLWrapper
 		int y = rco(ev.getY());
 		mouseDownX=x; mouseDownY=y;
 		
+		if(x>1220/2 -250 && y> 784/2-50 && x<1220/2 -50 && y< 784/2+50) {
+			sendAction(2, 0);
+		}
+		else if(x>1220/2 +50 && y> 784/2-50 && x < 1220/2 +250 && y< 784/2+50) {
+			if (boardinfo.playerDecks.get(iAmId).getTotalValue() < 21) 
+				sendAction(1, 0);
+		}
+//		backG.drawImage(baseImg[6], ,,200,100, null);
+//		backG.drawImage(baseImg[imageIndex], ,,200,100, null);
+		
 		System.err.println(x+"+"+y);
 		repaint();
 		ev.consume();
@@ -209,18 +228,49 @@ public class Board extends HTMLWrapper
 			backG.fillRect(0, 0, 1220, 784);
 			backG.setColor(Color.white);
 			backG.setFont(fontDefault);
+			FontMetrics fontMetrics = backG.getFontMetrics();
 
 			backG.drawImage(baseImg[0], 0,0, null);
-			backG.drawImage(baseImg[1], 200,0, null);
 			
 			if(phase==0)
 				for(int i=0; i<anzSpieler; i++)
 					backG.drawString(spielerName[i], 10, 40+i*40);
 			
 			if(phase==1) {
-				backG.drawString("Running game!", 10, 40);
-				backG.drawString("CurrentPlayer:"+currentPlayer, 10, 80);
-				backG.drawString("My Id:"+iAmId+" - so I am playing: "+iAmPlaying, 10, 120);
+				
+				if(currentPlayer==iAmId) {
+					int imageIndex = 6;
+					if (boardinfo.playerDecks.get(iAmId).getTotalValue() >= 21) {
+						imageIndex = 7;
+					}
+					backG.drawImage(baseImg[6], 1220/2 -250,784/2-50,200,100, null);
+					backG.drawImage(baseImg[imageIndex], 1220/2 +50,784/2-50,200,100, null);
+					backG.drawString("Stand", 1220/2 -150 - fontMetrics.stringWidth("Stand")/2, 784/2+8);
+					backG.drawString("Hit", 1220/2 +150- fontMetrics.stringWidth("Hit")/2, 784/2+8);
+				}
+				
+				int iAmIdentifier = 0;
+				for (int i = 0; i < boardinfo.playerDecks.size(); i++) {
+					if (i == iAmId) {
+						iAmIdentifier++;
+						continue;
+					}
+					Deck deck = boardinfo.playerDecks.get(i);
+					for (int b = 0; b < deck.deck.size(); b++) {
+						int startX = (1220/anzSpieler*(i+1-iAmIdentifier))-(((deck.deck.size()-1) * 30 +100)/2) ;
+						if(b==0) {
+							drawCard(backG, deck.deck.get(b), startX+b*100, 40,100,180);
+						} else {
+							drawCard(backG, null, startX+b*30+70, 40,100,180);
+						}
+						backG.drawString(spielerName[i]+": "+score[i], (1220/anzSpieler*(i+1-iAmIdentifier))-fontMetrics.stringWidth(spielerName[i])/2, 35);
+					}
+				}
+				Deck deck = boardinfo.playerDecks.get(iAmId);
+				for (int i = 0; i < deck.deck.size(); i++) {
+					int startX = 1220/2-(deck.deck.size() * 160)/2 ;
+					drawCard(backG, deck.deck.get(i), startX + i * 160, 784-240, 150, 230);
+				}
 			}
 		}catch(Exception ex) {
 			ex.printStackTrace();
@@ -247,7 +297,29 @@ public class Board extends HTMLWrapper
 		restore(g);
 		return hi;
 	}
-
+	
+	public void drawCard(Graphics2D backG, Card card, int x, int y, int cardWidth, int cardHeight) {
+		
+		backG.drawImage(baseImg[1],x , y, cardWidth, cardHeight,null);
+		if (card == null) {
+			return;
+		}
+		
+		FontMetrics fontMetrics = backG.getFontMetrics();
+		Color tempColor = backG.getColor();
+		if(card.symbol < 2) {
+			backG.setColor(Color.red);
+		}else {
+			backG.setColor(Color.black);
+		}
+		backG.drawString(card.displayValue, x+cardWidth-fontMetrics.stringWidth(card.displayValue)-10, y+40);
+		backG.drawString(card.displayValue, x+10, y+cardHeight -20);
+		backG.drawImage(baseImg[card.symbol+2],x+cardWidth/2-25 , y+cardHeight/2-25,null);
+		
+		backG.setColor(tempColor);
+		
+		//10,310 / 200,15
+	}
 	//Standard-Version
 	public double ease(double t, double b, double c, double d) {
 		c-=b;
