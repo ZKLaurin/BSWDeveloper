@@ -52,8 +52,16 @@ public class Deck {
 	
 	public int getTotalValue() {
 		int ret = 0;
+		int assCount = 0;
 		for (Card card : deck) {
+			if (card.cardValue == 1)
+				assCount++;
 			ret += card.cardValue;
+		}
+		for (int i = 0; i < assCount; i++) {
+			if (ret+10 <= 21) {
+				ret+=10;
+			}
 		}
 		return ret;
 	}
