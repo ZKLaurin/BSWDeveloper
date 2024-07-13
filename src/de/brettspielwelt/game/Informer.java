@@ -1,5 +1,7 @@
 package de.brettspielwelt.game;
 
+import java.util.Iterator;
+
 import de.Data;
 import de.brettspielwelt.client.boards.games.GameReceiver;
 import de.brettspielwelt.client.boards.games.PlainInformer;
@@ -7,19 +9,27 @@ import de.brettspielwelt.tools.IntVector;
 
 public class Informer extends PlainInformer{
 
+
 	int phase=0; 
 	int round=0,nextRound=0;	
+	boolean lastRound=false;
 	
 	int[] score=new int[0];
 	int[] platz=new int[0];
-	int[] punkte=new int[6];
 	
-	IntVector stapel=new IntVector();
-	IntVector ablage=new IntVector();
+
+	int[][] würfelStapel=new int[3][9]; // Alle 9 Würfel pro 3 Farben
+	int[][][] spielerBoards = new int[4][3][6];
+	IntVector verdecktPlättchenStapel=new IntVector(); // Verdeckte Chips: 26x Mistkäfer, 13x DoppeltMistkäfer, 9x Kleeblätter
+	IntVector[] spielerPlättchenStapel=new IntVector[4]; // Plättchenstapel der Spieler
+	int[] auslage = new int[5];
+
 	
-	IntVector[] hand=new IntVector[6];
-	IntVector[][] auslage=new IntVector[6][5];
-	int wunsch=-1;
+	
+	
+
+	
+//	int aktionen=3,nextAktionen=0,stealPlayer=0;
 	
 	public void sendAnim(int sp, int[] anim) {
 		if(spieler[sp]!=null)
@@ -52,11 +62,11 @@ public class Informer extends PlainInformer{
 	}
 
 	public int getMinMaxPlayer(){
-		return (2<<16)|6;
+		return (2<<16)|5;
 	}
 
 	public int getSpielID() {
-		return 169;
+		return 170;
 	}
 	public String getSpielClient() {
 		return "PasstNichtBoard";
@@ -93,8 +103,7 @@ public class Informer extends PlainInformer{
 
 	@Override
 	public void spielEnde() {
-		for(int i=0; i<4; i++)
-			phase=15;
+		phase=15;
 
 		calcScorePlatz();
 
@@ -106,111 +115,190 @@ public class Informer extends PlainInformer{
 	}
 
 	private void calcScorePlatz() {
-		int[] hi=new int[anzMitSpieler];
 		score=new int[anzMitSpieler];
 		platz=new int[anzMitSpieler];
 
 		for (int u=0; u<anzMitSpieler; u++) {
-			hi[u]=0;  // Tiebreaker countCross(u);
+//			score[u]=punkte[u];
+			platz[u]=1;
 		}
 		
 		for (int u=0; u<anzMitSpieler-1; u++) {
 			for (int v=u+1; v<anzMitSpieler; v++) {
-				if (score[u] > score[v]) {
+				if (score[u] < score[v]) {
 					platz[u]++;
-				} else if (score[u] < score[v]) {
+				} else if (score[u] > score[v]) {
 					platz[v]++;
 				}
 			}
 		}
 
-		for(int u=0; u<anzMitSpieler-1; u++) {
-			for(int v=u+1; v<anzMitSpieler; v++) {
-				if(score[u]==score[v]) {
-					if(hi[v]>hi[u]){
-						platz[v]++;
-					}else{ if(hi[u]>hi[v])
-						platz[u]++;
-					}
-				}
-			}
-		}
+		
 	}
 
 	
 	public void los() {
 		baseInit();
-		startRound();
 		currentPlayer=startSpieler;
-		
+		insertDiceIntoBoard(0, 0, 1);
+		insertDiceIntoBoard(0, 0, 1);
+		insertDiceIntoBoard(0, 0, 1);
+		insertDiceIntoBoard(0, 1, 2);
+		insertDiceIntoBoard(0, 2, 3);
+		insertDiceIntoBoard(0, 2, 3);
+		insertDiceIntoBoard(1, 1, 4);
+		insertDiceIntoBoard(1, 2, 5);
+        insertDiceIntoBoard(1, 2, 5);
+        insertDiceIntoBoard(1, 2, 5);
+        
+        for (int i = 0; i < 50; i++) {
+            System.err.println(rollDice());
+		}
+        
+		phase=1;
 		sendBoard();
 	}
 
-	public int drawCard(int sp) {
-		if(stapel.size()==0) {
-			int top=ablage.removeLast();
-			stapel.append(ablage);
-			stapel.mix();
-			ablage.removeAllElements();
-			ablage.addElement(top);
-		}
-		return stapel.removeLast();
+	public void drawPlättchen(int sp) {
+		spielerPlättchenStapel[sp].addElement(verdecktPlättchenStapel.removeLast());
 	}
 	
-	public void startRound() {
-		round++;
-		nextRound=0;
-
-		for(int i=0; i<6; i++) {
-			hand[i]=new IntVector();
-			for(int j=0; j<5; j++)
-				auslage[i][j]=new IntVector();
-		}
-		stapel=new IntVector();
-		for(int c=0; c<2; c++)
-			for(int i=0; i<5; i++) {
-				for(int j=0; j<6; j++) {
-					stapel.addElement(((i+1)<<4|j));
-				}
-			}
-		for(int i=0; i<4; i++)
-			stapel.addElement(0);
-		
-		stapel.mix();
-		ablage=new IntVector();
-		for(int i=0; i<stapel.size(); i++)
-			if(stapel.elementAt(i)!=0) {
-				ablage.addElement(stapel.removeElementAt(i));
-				break;
-			}
-		
-		for(int i=0; i<anzMitSpieler; i++) {
-			for (int j=0; j<5; j++) {
-				hand[i].addElement(drawCard(i));
+	public void insertDiceIntoBoard(int sp, int row, int diceValue) {
+		for (int i = 0; i < spielerBoards[sp][row].length; i++) {
+			if (spielerBoards[sp][row][i] == -1) {
+				spielerBoards[sp][row][i] = diceValue;
+				return;
 			}
 		}
-		wunsch=-1;
-		phase=1;
-		int min=5000, minSp=-1;
-		for(int i=0; i<anzMitSpieler; i++) {
-			if((punkte[i]&255)<min) {
-				min=punkte[i]&255;
-				minSp=i;
-			}
-		}
-		currentPlayer=minSp;
 	}
 	
+	public void removeLastDiceFromBoard(int sp, int row) {
+		for (int i = spielerBoards[sp][row].length - 1; i >= 0; i--) {
+			if (spielerBoards[sp][row][i] != -1) {
+				spielerBoards[sp][row][i] = -1;
+				return;
+			}
+		}
+	}
+	
+	public int rollDice() {
+		return rnd(6)+1;
+	}
+	
+	 // Function to move the last dice from würfelStapel to auslage
+    public void moveLastDiceFromWürfelStapelToAuslage(int diceColor, int auslageIndex) {
+        for (int i = würfelStapel[diceColor].length - 1; i >= 0; i--) {
+            if (würfelStapel[diceColor][i] != -1) {
+                auslage[auslageIndex] = würfelStapel[diceColor][i];
+                würfelStapel[diceColor][i] = -1;
+                return;
+            }
+        }
+    }
 
+    // Function to move dice from auslage to spielerBoards
+    public void moveDiceFromAuslageToBoard(int auslageIndex, int sp, int row) {
+        if (auslage[auslageIndex] != -1) {
+            insertDiceIntoBoard(sp, row, auslage[auslageIndex]);
+            auslage[auslageIndex] = -1;
+        }
+    }
+    
+    public int countNonNegativeOneEntries(int[] array) {
+        int count = 0;
+        for (int value : array) {
+            if (value == -1) {
+                break;
+            }
+            count++;
+        }
+        return count;
+    }
+	
+    public void rollAuslage() {
+    	for (int i = 1; i < auslage.length; i++) {
+			if (auslage[i]>0){
+				auslage[i] = rollDice();
+			}else {
+				return;
+			}
+		}
+    }
+	
+    public void clearAuslage() {
+    	int diceColor = auslage[0];
+    	for (int i = 1; i < auslage.length; i++) {
+            for (int j =  0; j < würfelStapel[diceColor].length; j++) {
+                if (würfelStapel[diceColor][j] == -1) {
+                	würfelStapel[diceColor][j] = auslage[i];
+                    auslage[i] = -1;
+                }
+            }
+		}
+    	auslage[0] = -1;
+
+    }
+    
+	public int[] exportSpielerPlättchen() {
+		int[] ret = new int[5];
+		ret[0] = verdecktPlättchenStapel.size();
+		for (int i = 0; i < spielerPlättchenStapel.length; i++) {
+			ret[i+1] = spielerPlättchenStapel[i].size();
+		}
+		
+		return ret;
+	}
+	
+	public void initPlättchen() {
+		verdecktPlättchenStapel.removeAllElements();
+		for (int i = 0; i < 48; i++) {
+			int tempNum = 1;
+			if(i >= 26 && i < 39) {
+				tempNum = 2;
+			} else if(i >= 39) {
+				tempNum = 3;
+			}
+				
+			verdecktPlättchenStapel.addElement(tempNum);
+		}
+		verdecktPlättchenStapel.mix();
+	}
+	
 	public void baseInit(){
 		round=0;
-		punkte=new int[6];
-		for(int i=0; i<6; i++)
-			punkte[i]=1000;
+		phase=14;
+		info=new int[4];
+		score=new int[0];
+		platz=new int[0];
+		spielerPlättchenStapel=new IntVector[4];
+		
+		for(int i=0; i<4; i++) {
+			spielerPlättchenStapel[i]=new IntVector();
+			
+			for (int j = 0; j < spielerBoards[0].length; j++) {
+				for (int j2 = 0; j2 < spielerBoards[0][0].length; j2++) {
+					spielerBoards[i][j][j2] = -1;
+				}
+			}
+		}
+		
+		for (int i = 0; i < würfelStapel.length; i++) {
+			for (int j = 0; j < würfelStapel[i].length; j++) {
+				würfelStapel[i][j] = rollDice();
+			}
+		}
+		
+		for (int i = 0; i < 5; i++) {
+			auslage[i] = -1;
+		}
+		
+		
+		initPlättchen();
+		
+
 		platz=new int[0];
 		score=new int[0];
 		nextRound=0;
-		startRound();
 		currentPlayer=0;
 	}
 	
@@ -226,146 +314,195 @@ public class Informer extends PlainInformer{
 		}
 	}
 
-	static final int JOKER=0;
-	
+
+
 	private void execAction(int curPl, int action) {
-		int act=action>>28&7;
+		int act=action>>28&15; 
 		if(!isRunningGame()) return;
 
-		if(phase==3 && act==7) {
-			nextRound|=1<<curPl;
-			if(nextRound==(1<<anzMitSpieler)-1) {
-				startRound();
+
+		if(phase == 1 && currentPlayer == curPl) {
+			if (act == 1) {
+				int diceColor=action&3;
+				phase = 2;
+				auslage[0] = diceColor;
+				if ( countNonNegativeOneEntries(würfelStapel[diceColor]) >= 4) {
+					for (int i = 0; i < 4; i++) {
+						moveLastDiceFromWürfelStapelToAuslage(diceColor, i+1);
+					}
+				}else {
+					for (int i = 0; i <  countNonNegativeOneEntries(würfelStapel[diceColor]); i++) {
+						moveLastDiceFromWürfelStapelToAuslage(diceColor, i+1);
+					}
+				}
+				rollAuslage();
+			}else if(act == 2) {
+				//Hier auswerten
+			}
+			System.err.println("act: "+act);
+			System.err.println("action: "+(action&3));
+			System.err.println("action full: "+(action));
+			sendBoard();
+		}else if(phase == 2) {
+			if (act==3) {
+				int auslageIndex = action&31;
+				int chosenDiceValue = auslage[auslageIndex];
+				for (int i = 1; i < auslage.length; i++) {
+					if (auslage[i] == chosenDiceValue)
+						moveDiceFromAuslageToBoard(i,currentPlayer , auslage[0]);
+				}
+				clearAuslage();
 				sendBoard();
-				sendAnim(appendAnim(null,8<<16,1, 0,0,0)); //wegc
-			}
-			sendBoard();
-		}
-		if(phase==2 && act==4) {
-			int wu=action&15;
-			if(wu<6) wunsch=wu;
-			else if(wu<11) wunsch=(wu-5)<<4;
-			phase=1;
-			weiter();
-			sendBoard();
-		}
-		if(phase==1 && act==1 && currentPlayer==curPl) { // (Passt) Spiele Karte aus Hand auf ablage
-			 // geht immer
-			int hIndx=action&31;
-			if(hIndx<hand[curPl].size()) {
-				int hCol=hand[curPl].elementAt(hIndx)>>4;
-				int hZahl=hand[curPl].elementAt(hIndx)&15;
-				int col=ablage.lastElement()>>4;
-				int zahl=ablage.lastElement()&15;
-				if(wunsch!=-1 && col==0 && zahl==0) { // joker liegt und wunsch ist
-					col=wunsch>>4;
-					zahl=col==0?wunsch&15:-1;
-				}
-				if(hand[curPl].elementAt(hIndx)==JOKER) {
-					int ca=hand[curPl].removeElementAt(hIndx);
-					sendAnim(appendAnim(null,1<<16,curPl,ca,hIndx,0));
-					ablage.addElement(ca);
-					phase=2;
-					sendBoard();
-				}else
-				if(col==hCol || zahl==hZahl) { // wenn Farbe oder Zahl passt
-					int ca=hand[curPl].removeElementAt(hIndx);
-					sendAnim(appendAnim(null,1<<16,curPl,ca,hIndx,0));
-					ablage.addElement(ca);
-					wunsch=-1;
-					weiter();
-					sendBoard();
-				}
 			}
 		}
-		if(phase==1 && act==2 && currentPlayer==curPl) { // (Passt nicht) Spiele Karte aus Hand in Auslage
-			int pa=auslagePasst(curPl);
-			if(pa==0) { // geht nur wenn keine Auslage passt und die karte nicht passt
-				int hIndx=action&31;
-				if(hIndx<hand[curPl].size() && hand[curPl].elementAt(hIndx)!=0) { // Kein joker
-					int hCol=hand[curPl].elementAt(hIndx)>>4;
-					int hZahl=hand[curPl].elementAt(hIndx)&15;
-					int col=ablage.lastElement()>>4;
-					int zahl=ablage.lastElement()&15;
-					if(wunsch!=-1 && col==0 && zahl==0) { // joker liegt und wunsch ist
-						col=wunsch>>4;
-						zahl=col==0?wunsch&15:-1;
-					}
-
-					if(col!=hCol && zahl!=hZahl) { // wenn Farbe oder Zahl nicht passt
-						auslage[curPl][hCol-1].addElement(hand[curPl].removeElementAt(hIndx));
-						int ca=drawCard(curPl);
-						hand[curPl].addElement(ca);
-						sendBoard(appendAnim(null,6<<16,curPl,ca,hIndx,0));
-						weiter();
-						sendBoard();
-					}
-				}				
-			}
-		}
-		if(phase==1 && act==3 && currentPlayer==curPl) { // Spiele Karte aus Auslage auf ablage
-			int pa=auslagePasst(curPl);
-			if(pa!=0) { // geht nur wenn eine Auslage auch passt
-				int aslIndx=action&7;
-				if((pa>>aslIndx&1)==1) { // Auslage passt
-					int ca=auslage[curPl][aslIndx].removeLast();
-					sendAnim(appendAnim(null,3<<16,curPl,ca,aslIndx,0));
-					ablage.addElement(ca);
-					wunsch=-1;
-					weiter();
-					sendBoard();
-				}
-			}
-		}
+//
+//		if(phase==0  && currentPlayer==curPl) {
+//			if(gesammelt[curPl].contains(18)) {
+//				if(act==1) { // nimm karte in hand (2-4)    oder auf Portal (0-1)
+//					int place=action&7;
+//					int target=action>>3&3;
+//					if(target<2 && place<2 && portale[curPl][target]>0) {
+//						int saveP=portale[curPl][target];
+//						int[] anim=null;
+//						anim=appendAnim(null, 0<<16|auslage[place], 1,place, 20+curPl,target);
+//						portale[curPl][target]=auslage[place];
+//						auslage[place]=saveP;
+//						anim=appendAnim(anim, 0<<16|saveP, 20+curPl,target, 1,place);
+////						phase=1;
+//						sendBoard(anim);
+//					}
+//				}
+//			}
+//		}
+//		if((phase==0||phase==1) && currentPlayer==curPl) {
+//			if(act==8) {
+//				int[] animt=null;
+//				for(int i=3; i>=0; i--) {
+//					animt=appendAnim(animt, 1<<16|auslage[i+2], 1,i+2, 2,0);
+//					ablageNum.addElement(auslage[i+2]);
+//				}
+//				sendBoard(animt);
+//				animt=null;
+//				for(int i=0; i<4; i++) {
+//					auslage[i+2]=drawNumberCard(curPl);
+//					animt=appendAnim(animt, 1<<16|auslage[i+2], 2,0, 1,i+2);
+//				}
+//				aktionen--;
+//				phase=1;
+//				sendBoard(animt);
+//			}
+//			if((act==2||act==3)) { // karte aus portal 2/3==0/1 aktivieren
+//				int getCard=portale[curPl][act-2];
+//				chooser.removeAllElements();
+//				for(int i=15; i>=0; i--) {
+//					if((action>>i&1)==1) {
+//						int w=hand[curPl].removeElementAt(i);
+//						ablageNum.addElement(w);
+//						if(getCard==22) chooser.addElement(w); // Die kann ich zur�ck bekommen
+//					}
+//				}
+//				gesammelt[curPl].addElement(getCard);
+//				punkte[curPl]+=charKosten[getCard][3]&15;
+//				perlen[curPl]+=charKosten[getCard][3]>>4&15;
+//				int[] anim=null;
+//				anim=appendAnim(null,0<<16|getCard, 20+curPl,act-2, 30+curPl,gesammelt[curPl].size());
+//				portale[curPl][act-2]=-1;
+//				aktionen--;
+//				phase=1;
+//				gainCard(getCard);
+//				sendBoard(anim);
+//			}
+//			if(act==1) { // nimm karte in hand (2-4)    oder auf Portal (0-1)
+//				int place=action&7;
+//				int target=action>>3&3;
+//		
+//				if(place>1 && place<7) { // zahlenkarten
+//					// achtung 6=nazistapel
+//					
+//					int[] anim=null;
+//					int[] animt=null;
+//					int neuCard=-1;
+//					if(place==6) { // von nazistapel
+//						hand[curPl].addElement(drawNumberCard(curPl));
+//						anim=appendAnim(null, 1<<16|0, 2,0, 10+curPl,hand[curPl].size()-1);
+//					}else {
+//						// Grundprinzip --- Server daten �nderung -- sendBoard(anim)  
+//						hand[curPl].addElement(auslage[place]);
+//						anim=appendAnim(null, 1<<16|auslage[place], 1,place, 10+curPl,hand[curPl].size()-1);
+//		
+//						neuCard=drawNumberCard(curPl);
+//						auslage[place]=neuCard;
+//						// Bei Animationorten muss der Zielplatz existieren (richtig berechenbar sein) 
+//						// Alle flying places werden nicht gezeichnet nur durch die animation
+//						anim=appendAnim(anim, 1<<16|neuCard, 2,0, 1,place);
+//
+//
+//					}
+//					aktionen--;
+//					phase=1;
+//					sendBoard(anim);
+//					if((neuCard&64)==64) { // Charaustausch
+//						for(int i=1; i>=0; i--) {
+//							animt=appendAnim(animt, 0<<16|auslage[i], 1,i, 2,1);
+//							ablageChar.addElement(auslage[i]);
+//						}
+//						sendBoard(animt);
+//						animt=null;
+//						for(int i=0; i<2; i++) {
+//							auslage[i]=drawCharCard(curPl);
+//							animt=appendAnim(animt, 0<<16|auslage[i], 2,1, 1,i);
+//						}
+//						sendBoard(animt);
+//					}
+//
+//					
+//				}else {
+//					if(target==3 && portale[curPl][0]==-1) target=0;
+//					if(target==3 && portale[curPl][1]==-1) target=1;
+//					
+//					if(target<2 && portale[curPl][target]==-1) {
+//						int[] anim=null;
+//						if(place==7) { // von Nazistapel
+//							int drawnCard=drawCharCard(curPl);;
+//							anim=appendAnim(null, 0<<16|drawnCard, 2,1, 20+curPl,target);
+//							portale[curPl][target]=drawnCard;
+//						}else {
+//							anim=appendAnim(null, 0<<16|auslage[place], 1,place, 20+curPl,target);
+//							portale[curPl][target]=auslage[place];
+//							int neuCard=drawCharCard(curPl);
+//							auslage[place]=neuCard;
+//							anim=appendAnim(anim, 0<<16|neuCard, 2,1, 1,place);
+//						}
+//						aktionen--;
+//						phase=1;
+//						sendBoard(anim);
+//					}				}
+//			}
+//			if(aktionen<=0 && phase==1) {
+//				weiter();
+//				sendBoard();
+//			}
+//		}
 	}
 
-	public int auslagePasst(int sp) { // returns bitfeld der auslagestapel die passen
-		int ret=0;
-		int col=ablage.lastElement()>>4;
-		int zahl=ablage.lastElement()&15;
-		if(wunsch!=-1 && col==0 && zahl==0) { // joker liegt und wunsch ist
-			col=wunsch>>4;
-			zahl=col==0?wunsch&15:-1;
+
+	
+	public void weiter() { // nach der letzten aktion
+		if(phase!=2 && phase!=3) {
+			phase=2;
 		}
-		if(col>0 && auslage[sp][col-1].size()>0) // farbe passt
-			ret|=1<<(col-1);
-		for(int i=0; i<5; i++)
-			if(auslage[sp][i].size()>0 && (auslage[sp][i].lastElement()&15)==zahl) // zahl passt
-				ret|=1<<i;
-		return ret;
-	}
-	
-	public void weiter() {
-		if(hand[currentPlayer].size()==0)
-			rundenEnde();
-		else currentPlayer=(currentPlayer+1)%anzMitSpieler;
-	}
-	
-	public void rundenEnde() {
-		phase=3;
-		for(int sp=0; sp<anzMitSpieler; sp++) {
-			int minus=0, plus=0;
-			int before=(punkte[sp]&0xffff)-1000;
-			for(int i=0; i<hand[sp].size(); i++) {
-				int ca=hand[sp].elementAt(i);
-				if(ca==0) minus+=10;
-				else minus+=ca&15;
-			}
-			for(int j=0; j<5; j++) {
-				int st=auslage[sp][j].size();
-				for(int i=0; i<st; i++) {
-					int ca=auslage[sp][j].elementAt(i);
-					plus+=ca&15;
+		currentPlayer=(currentPlayer+1)%anzMitSpieler;
+		if(lastRound && currentPlayer==startSpieler)
+			spielEnde();
+		else {
+			if(currentPlayer==startSpieler) {
+				for(int i=0; i<anzMitSpieler; i++) {
 				}
 			}
-			punkte[sp]=plus<<16|minus<<24|(1000+before+(plus-minus));
+			phase=1; // phase 0 wird autiomatisch beendet wenn erste aktion ausgef�hrt.
 		}
-		sendBoard();
-		sendAnim(appendAnim(null,8<<16,0, 0,0,0));
-		for(int sp=0; sp<anzMitSpieler; sp++)
-			if(((punkte[sp]&0xffff)-1000)>=50)
-				spielEnde();
 	}
+	
 	
 	public void sendBoard(){
 		for (GameReceiver playerInfo : getReceiverArray()) {
@@ -382,28 +519,25 @@ public class Informer extends PlainInformer{
 		sendBoard(st,null);
 	}
 	
-	public int[][] getAuslagen() {
-		int[][] ret=new int[anzMitSpieler][6];
-		for(int i=0; i<anzMitSpieler; i++) {
-			//ret[i]=new IntVector();
-			for(int j=0; j<5; j++) {
-				if(auslage[i][j].size()>0) {
-					ret[i][j]=auslage[i][j].lastElement();
-					if(auslage[i][j].size()>1) {
-						ret[i][j]|=auslage[i][j].elementAt(auslage[i][j].size()-2)<<8;
-					}
-					ret[i][j]|=auslage[i][j].size()<<16;
+	public int[][] exportPlayerBoards(){
+		int[][] ret = new int[4][18];
+		for (int i = 0; i < spielerBoards.length; i++) {
+			for (int j = 0; j < spielerBoards[i].length; j++) {
+				for (int j2 = 0; j2 < spielerBoards[i][j].length; j2++) {
+					ret[i][j*6+j2]=spielerBoards[i][j][j2];
 				}
 			}
-			ret[i][5]=hand[i].size();
 		}
 		return ret;
 	}
+
 	IntVector empty=new IntVector();
+	private boolean noMoreTopChar;
+	int[] info=new int[5];
+	
 	public void sendBoard(GameReceiver st, int[] anim){
 		int id=st.getPlaying();
-		int[][] ausls=getAuslagen();
-		
+//		for(int i=0; i<anzMitSpieler; i++) info[i]=hand[i].size()|punkte[i]<<5|perlen[i]<<10|portalGraph[i]<<15;
 		Data dat=st.makeData(700,getSpielClient());
 		dat.v.addElement(new Integer(anzMitSpieler));
 		dat.v.addElement(new Integer(st.getPlaying()));
@@ -411,12 +545,15 @@ public class Informer extends PlainInformer{
 		dat.v.addElement(new Integer(round));
 		dat.v.addElement(new Integer(currentPlayer));
 		dat.v.addElement(new Integer(startSpieler));
-		dat.v.addElement(id>-1?hand[id]:empty);
-		dat.v.addElement(ausls);
-		dat.v.addElement(ablage.lastElement());
-		dat.v.addElement(wunsch);
-		dat.v.addElement(punkte);
-		dat.v.addElement(nextRound);
+		dat.v.addElement(id>-1?spielerPlättchenStapel[id]:empty);
+		dat.v.addElement(exportPlayerBoards());
+		dat.v.addElement(exportSpielerPlättchen());
+		dat.v.addElement(würfelStapel);
+		dat.v.addElement(auslage);
+		
+		dat.v.addElement(info);
+		
+		
 
 		if(anim!=null)
 			dat.v.addElement(anim);
@@ -431,6 +568,8 @@ public class Informer extends PlainInformer{
 	public void sendGameStatus(GameReceiver st) {
 		Data dat=st.makeData(702,getSpielClient());
 
+		dat.v.addElement(score);
+		dat.v.addElement(platz);
 		for(int i=0; i<5; i++) {
 			if(spieler[i]!=null) {
 				dat.v.addElement(spieler[i].getPName());
@@ -447,3 +586,4 @@ public class Informer extends PlainInformer{
 		}
 	}
 }
+ 

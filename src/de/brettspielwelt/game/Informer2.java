@@ -6,14 +6,35 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import de.brettspielwelt.tools.IntVector;
+
 public class Informer2 {
 
+	IntVector perlenStapel=new IntVector();
+	IntVector charStapel=new IntVector();
+	
+	int[][] portal=new int[5][2];
+	IntVector[] hand=new IntVector[5];
+	
+	public void baseInit() {
+		for(int i=0; i<5; i++) {
+			portal[i][0]=0;
+			portal[i][1]=0;
+			hand[i]=new IntVector();
+		}
+		for(int j=1; j<=8; j++) {
+			for(int i=0; i<7; i++)
+				perlenStapel.addElement(j);
+		}
+	}
+	
 	// -------------  paar  drilling vierling
 
     public static List<List<Integer>> findCombinations(List<Integer> hand, int groupSize) {
         List<List<Integer>> result = new ArrayList<>();
         Map<Integer, List<Integer>> valueToCardsMap = new HashMap<>();
 
+        // Gruppieren Karten nach ihrem Wert
         for (int i = 0; i < hand.size(); i++) {
             int card = hand.get(i);
             if (!valueToCardsMap.containsKey(card)) {
@@ -21,9 +42,12 @@ public class Informer2 {
             }
             valueToCardsMap.get(card).add(i);
         }
+
+        // Durchlaufe alle Kartenwerte und suche nach gewünschten Gruppen
         for (int value : valueToCardsMap.keySet()) {
             List<Integer> indices = valueToCardsMap.get(value);
             if (indices.size() >= groupSize) {
+                // Überprüfe, ob genügend Karten mit dem gleichen Wert vorhanden sind
                 findCombinations(hand, indices, groupSize, 0, new ArrayList<>(), result);
             }
         }
@@ -31,6 +55,7 @@ public class Informer2 {
         return result;
     }
 
+    // Rekursive Hilfsmethode zur Suche nach gewünschten Gruppen
     private static void findCombinations(List<Integer> hand, List<Integer> indices, int groupSize,
                                           int startIndex, List<Integer> currentCombination, List<List<Integer>> result) {
         if (currentCombination.size() == groupSize) {
@@ -42,6 +67,7 @@ public class Informer2 {
             int index = indices.get(i);
             currentCombination.add(hand.get(index));
 
+            // Rekursiv nach weiteren Karten suchen, um die Gruppe zu vervollständigen
             findCombinations(hand, indices, groupSize, i + 1, currentCombination, result);
 
             currentCombination.remove(currentCombination.size() - 1);
