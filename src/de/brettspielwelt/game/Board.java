@@ -40,6 +40,7 @@ public class Board extends ElementBoard
 	boolean iAmPlaying = false;
 	int anzSpieler = 0;
 	int iAmId = -1;
+	int[] playerOrder = {0,1,2,3};
 	
 	boolean hideCards = false;
 	
@@ -57,7 +58,7 @@ public class Board extends ElementBoard
 	int[][][] spielerBoards = new int[4][3][6];
 	int[] spielerPlättchenCount = new int[4];
 	int verdecktPlättchenStapel=0;
-	IntVector spielerPlättchenStapel=new IntVector(); 
+	IntVector spielerPlättchenStapel=new IntVector();
 	
 	
 	int[] info=new int[5];
@@ -194,7 +195,7 @@ public class Board extends ElementBoard
 					spielerBoards[i][j/6][j%6] = inputBoard[i][j];				
 			}
 		}
-		printBoards();
+//		printBoards();
 	}
 	
 	public void importPlättchenCount(int[] input) {
@@ -215,6 +216,29 @@ public class Board extends ElementBoard
             }
             System.out.println();
         }
+	}
+	
+	public void setPlayerOrder(int id) {
+		playerOrder[0] = 0;
+		playerOrder[1] = 1;
+		playerOrder[2] = 2;
+		playerOrder[3] = 3;
+		if (iAmId == 1) {
+			playerOrder[0] = 1;
+			playerOrder[1] = 0;
+			playerOrder[2] = 2;
+			playerOrder[3] = 3;
+		} else if (iAmId == 2) {
+			playerOrder[0] = 2;
+			playerOrder[1] = 0;
+			playerOrder[2] = 1;
+			playerOrder[3] = 3;
+		} else if (iAmId == 3) {
+			playerOrder[0] = 3;
+			playerOrder[1] = 0;
+			playerOrder[2] = 1;
+			playerOrder[3] = 2;
+		}		
 	}
 	
 	
@@ -407,10 +431,23 @@ public class Board extends ElementBoard
 		
 		if(phase==2) {
 			for(int i=1; i<auslage.length; i++) {
-				int imageIndex = auslage[0]*6+auslage[i];
-				if(hitLocObject(x, y, 4, i-1, DICE<<16|imageIndex)) {
-					System.out.println("hit auslage spot: "+i+ " with Wert: "+auslage[i]);
-					sendAction(3, i);
+
+				if(auslage[i]> -1) {
+					int imageIndex = auslage[0]*6+auslage[i];
+					if(hitLocObject(x, y, 4, i-1, DICE<<16|imageIndex)) {
+						System.out.println("hit auslage spot: "+i+ " with Wert: "+auslage[i]);
+						sendAction(3, i);
+					}
+				}
+			}
+			return;
+		}
+		
+		if(phase==3) {
+			for(int i=1; i<anzSpieler; i++) {
+				if(hitLocObject(x, y, 10, i, PLAYERBOARD<<16|0)) {
+					System.out.println("hit playerboard spot: "+i+ " with Wert: "+playerOrder[i]);
+					sendAction(4, playerOrder[i]);
 				}
 			}
 			return;
@@ -507,7 +544,7 @@ public class Board extends ElementBoard
 			int rowIndex = diceInfo / 6;
             int colIndex = diceInfo % 6;
 			int offsetX=-157, offsetY=-103;
-			Place pp =new Place(offsetX+colIndex*60,offsetY+rowIndex*70, 0.6).setOnPlace(getPlace(10, playerBoard));
+			Place pp =new Place(offsetX+colIndex*62,offsetY+rowIndex*70, 0.6).setOnPlace(getPlace(10, playerBoard));
 			return pp;
 		}
 		if (a==10) { //Playerboards 395x306 px  /2 = 197x153  1220, 784
@@ -602,7 +639,7 @@ public class Board extends ElementBoard
 			}
 		}
 		//Drawing Board End
-		if(phase == 1) {
+		if(phase == 1 && currentPlayer == iAmId) {
 			backG.setColor(new Color(0xeabd09));
 			backG.fillRoundRect(395, 620, 200, 60, 20, 20);
 			backG.setFont(fontLarge);
